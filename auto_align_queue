@@ -1,0 +1,127 @@
+#!/bin/csh -f
+
+#echo $#argv
+
+#set j = 1
+#@ j ++
+#echo $j
+
+
+	if ($#argv != 7) then
+		echo "usage:  auto_align <# iter> <starting im> <orig im> <num particles> <starting class number> <ending class number> <filter strength>"
+		exit(0)
+	endif
+
+set i = 1
+set current_images = $2
+set orig_im = $3
+set numParts = $4
+set start_class = $5
+set end_class = $6
+set filt_strength = $7
+
+@ dec_num = ($start_class - $end_class) / ($1 - 2)
+
+@ numIters = $numParts * 6 
+
+if ($i == 1 ) then 
+mkdir auto_iteration_1
+cp ${current_images}.hed auto_iteration_1/mra0.hed
+cp ${current_images}.img auto_iteration_1/mra0.img
+
+ln -s auto_iteration_1/mra0.hed current_mra.hed
+ln -s auto_iteration_1/mra0.img current_mra.img
+
+cd auto_iteration_1
+
+endif
+
+while ( $i < $1 )
+
+if ($i != 1) then
+	mkdir auto_iteration_${i}
+	cd auto_iteration_${i}
+endif
+
+pwd
+ls -l
+ls -l ../
+
+@ l = $dec_num * ${i}
+@ l = $l - $dec_num
+@ m = $start_class - ${l}
+set nodes=${m}
+
+echo "queuing CAN..."
+qsub ../CAN_queue.csh ../current_mra classsums${i} $numIters 0.01 0.0005 25 $nodes
+
+while 1
+if (-e CAN_is_done) then 
+rm -f CAN_is_done
+break
+else
+sleep 60
+endif
+end
+
+echo "queuing pretreat..."
+qsub ../pretreat_queue.csh classsums${i}
+
+while 1
+if (-e pretreat_is_done) then 
+rm -f pretreat_is_done
+break
+else
+sleep 60
+endif
+end
+
+echo "queuing MRA..."
+qsub ../mra_queue.csh ../current_mra mra${i} classsums${i}_center_prep_mask_norm ../${orig_im} ${filt_strength}
+
+while 1
+if (-e MRA_is_done) then 
+rm -f MRA_is_done
+break
+else
+sleep 60
+endif
+end
+
+echo "queuing INCORE PREP..."
+qsub ../incore_prep_queue.csh mra${i} mra_filt${i} ${filt_strength}
+
+while 1
+if (-e incore_prep_is_done) then 
+rm -f incore_prep_is_done
+break
+else
+sleep 60
+endif
+end
+
+mv mra${i}.hed mra_unFilt${i}.hed
+mv mra${i}.img mra_unFilt${i}.img
+
+mv mra_filt${i}.hed mra${i}.hed
+mv mra_filt${i}.img mra${i}.img
+
+pwd
+ls -l
+ls -l ../
+
+cd ..
+
+rm -f current_mra.hed
+rm -f current_mra.img
+
+ln -s auto_iteration_${i}/mra${i}.hed current_mra.hed
+ln -s auto_iteration_${i}/mra${i}.img current_mra.img
+
+pwd
+ls -l
+ls -l ../
+
+@ i ++
+
+end
