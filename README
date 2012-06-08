@@ -1,23 +1,5 @@
 These are the scripts needed to run AutoAlign on a single workstation or on a cluster.
 
-It has been cloned to angula:
-/home/michael/Scripts/AutoAlign
-
-To compile CAN, make sure the following scripts are in your working directory: 
-
-Adapt.cpp
-Adapt.o 
-Edge.cpp
-Edge.h  
-Edge.o  
-Node.cpp  
-Node.h  
-Node.o  
-imagic.h  
-makefile
-
-Then type 'make' on the command line.
-
 The auto_align_queue script is the wrapper that will run CAN on a Sun Grid Engines cluster whereas auto_align_101013e is the wrapper you need to run CAN on a single linux workstation.  
 
-
+To compile CAN, see /compile folder.
