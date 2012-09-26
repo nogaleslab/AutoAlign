@@ -1,0 +1,184 @@
+#!/bin/csh -f
+
+#echo $#argv
+
+#set j = 1
+#@ j ++
+#echo $j
+
+
+	if ($#argv != 7) then
+		echo "usage:  auto_align <# iter> <starting im> <orig im> <num particles> <starting class number> <ending class number> <filterstrength>"
+		exit(0)
+	endif
+
+set i = 1
+set current_images = $2
+set orig_im = $3
+set numParts = $4
+set start_class = $5
+set end_class = $6
+set filt_strength = $7
+
+@ dec_num = ($start_class - $end_class) / ($1 - 2)
+
+@ numIters = $numParts * 6 
+
+if ($i == 1 ) then 
+mkdir auto_iteration_1
+cp ${current_images}.hed auto_iteration_1/mra0.hed
+cp ${current_images}.img auto_iteration_1/mra0.img
+
+ln -s auto_iteration_1/mra0.hed current_mra.hed
+ln -s auto_iteration_1/mra0.img current_mra.img
+
+cd auto_iteration_1
+
+endif
+
+while ( $i < $1 )
+
+if ($i != 1) then
+	mkdir auto_iteration_${i}
+	cd auto_iteration_${i}
+endif
+
+pwd
+ls -l
+ls -l ../
+
+@ l = $dec_num * ${i}
+@ l = $l - $dec_num
+@ m = $start_class - ${l}
+set nodes=${m}
+
+echo "running CAN..."
+../CAN ../current_mra classsums${i} $numIters 0.01 0.0005 25 $nodes
+
+
+#imagic command for alirefs:  prep-mra-ref!
+setenv IMAGIC_BATCH 1
+echo "! "
+echo "! "
+echo "! ====================== "
+echo "! IMAGIC ACCUMULATE FILE "
+echo "! ====================== "
+echo "! "
+echo "! "
+echo "! IMAGIC program: alimass ----------------------------------------------"
+echo "! "
+/opt/qb3/imagic-100312/openmpi/bin/mpirun -np 8 -x IMAGIC_BATCH  /opt/qb3/imagic-100312/align/alimass.e_mpi MODE MASS <<EOF
+YES
+8
+classsums${i}
+classsums${i}_center
+0.7
+0.15
+EOF
+echo "! "
+echo "! IMAGIC program: alirefs ----------------------------------------------"
+echo "! "
+/opt/qb3/imagic-100312/align/alirefs.e <<EOF
+ALL
+CCF
+classsums${i}_center
+NO
+0.9
+classsums${i}_center_prep
+-999.
+0.15
+-180,180
+NO
+5
+NO
+EOF
+echo "! "
+echo "! IMAGIC program: arithm -----------------------------------------------"
+echo "! "
+/opt/qb3/imagic-100312/stand/arithm.e <<EOF
+classsums${i}_center_prep
+classsums${i}_center_prep_mask
+SOFT
+0.8
+0.1
+EOF
+echo "! "
+echo "! IMAGIC program: pretreat ---------------------------------------------"
+echo "! "
+/opt/qb3/imagic-100312/stand/pretreat.e <<EOF
+classsums${i}_center_prep_mask
+classsums${i}_center_prep_mask_norm
+NORM_VARIANACE
+WH
+10.0
+NO
+EOF
+echo "! "
+echo "! IMAGIC program: mralign ----------------------------------------------"
+echo "! "
+/opt/qb3/imagic-100312/openmpi/bin/mpirun -np 8 -x IMAGIC_BATCH  /opt/qb3/imagic-100312/align/mralign.e_mpi <<EOF
+YES
+8
+FRESH
+ALL_REFERENCES
+ALIGNMENT
+BOTH (ROT AND TRANS)
+ROTATION_FIRST
+CCF
+../current_mra
+mra${i}
+../${orig_im}
+classsums${i}_center_prep_mask_norm
+NO_FILTER
+0.15
+0.05
+-180,180
+-180,180
+LOW
+0.0,0.7
+5
+NO
+EOF
+echo "! "
+echo "! IMAGIC program: incprep ----------------------------------------------"
+echo "! "
+/opt/qb3/imagic-100312/openmpi/bin/mpirun -np 8 -x IMAGIC_BATCH  /opt/qb3/imagic-100312/incore/incprep.e_mpi <<EOF
+YES
+8
+mra${i}
+mra_filt${i}
+0.000102
+0.005
+0.7
+0.7,0.2
+10.0
+NO
+EOF
+
+
+mv mra${i}.hed mra_unFilt${i}.hed
+mv mra${i}.img mra_unFilt${i}.img
+
+mv mra_filt${i}.hed mra${i}.hed
+mv mra_filt${i}.img mra${i}.img
+
+
+pwd
+ls -l
+ls -l ../
+
+cd ..
+
+rm -f current_mra.hed
+rm -f current_mra.img
+
+ln -s auto_iteration_${i}/mra${i}.hed current_mra.hed
+ln -s auto_iteration_${i}/mra${i}.img current_mra.img
+
+pwd
+ls -l
+ls -l ../
+
+@ i ++
+
+end
