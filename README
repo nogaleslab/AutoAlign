@@ -3,3 +3,5 @@ These are the scripts needed to run AutoAlign on a single workstation or on a cl
 The auto_align_queue script is the wrapper that will run CAN on a Sun Grid Engines cluster whereas auto_align_101013e is the wrapper you need to run CAN on a single linux workstation.  
 
 To compile CAN, see /compile folder.
+
+To run on a cluster, make sure you have all the 'queue.csh' scripts in the same working directory as auto_align_queue.
